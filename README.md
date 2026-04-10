@@ -7,15 +7,9 @@ A project dedicated to learning C++ for applications in AI/ML and lower-level GP
 To gain access to all required binaries needed run:
 
 ```bash
-nix shell
+nix develop --command $SHELL
 ```
 
-After running this, in order for the Clangd LSP to run, generate the config with:
-
-```bash
-gen-clangd-config
-```
-
-This will generate the config in whichever directory the shell currently is in and will get C++ and CUDA running correctly with Clangd.
-Preferably, do this in the root directory. Clangd has the ability to search upwards from whichever directory it is running in.
+**NOTE**: This will generate a Clangd config in whichever directory the shell currently is in.
+This allows C++ and CUDA running correctly with the Clangd LSP.
 

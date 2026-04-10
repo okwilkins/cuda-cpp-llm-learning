@@ -98,8 +98,6 @@
         packages.tools = pkgs.buildEnv {
           name = "cuda-tools";
           paths = tools;
-          # INFO: GDB and CUDA toolkit clash but should be non-problematic
-          ignoreCollisions = true;
         };
 
         defaultPackage = self.packages.${system}.tools;

@@ -41,8 +41,7 @@
           pkgs.ninja
           pkgs.gnumake
 
-          # pkgs.cudatoolkit
-          # pkgs.linuxPackages.nvidia_x11
+          pkgs.cudatoolkit
 
           # Dev tools
           pkgs.gdb
@@ -58,6 +57,8 @@
         packages.tools = pkgs.buildEnv {
           name = "cuda-tools";
           paths = tools;
+          # INFO: GDB and CUDA toolkit clash but should be non-problematic
+          ignoreCollisions = true;
         };
 
         defaultPackage = self.packages.${system}.tools;

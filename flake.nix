@@ -33,6 +33,46 @@
             "$@"
         '';
 
+        genClangdConfig = pkgs.writeShellScriptBin "gen-clangd-config" ''
+          CUDA_ARCH_RAW=$(nvidia-smi --query-gpu=compute_cap | sed -n '2p' | tr -d '.' 2>/dev/null)
+
+          if [ -z "$CUDA_ARCH_RAW" ]; then
+            echo "ERROR: nvidia-smi failed to return a compute capability." >&2
+            exit 1
+          fi
+
+          cat > .clangd <<EOF
+          CompileFlags:
+            Add:
+              - -std=c++23
+              - -Wall
+              - -Wextra
+              - -Wsign-conversion
+              - -Wshadow
+              - -Wpedantic
+              - --driver-mode=g++
+
+          ---
+          If:
+            PathMatch: .*\.cuh?
+
+          CompileFlags:
+            Add:
+              - "-xcuda"
+              - "--cuda-path=${pkgs.cudatoolkit}"
+              - "--cuda-gpu-arch=sm_$CUDA_ARCH_RAW"
+            Remove:
+              - "-Xcompiler*"
+              - "-Xfatbin*"
+              - "-gencode*"
+              - "--generate-code*"
+              - "-ccbin*"
+              - "--compiler-options*"
+              - "-forward-unknown-to-host-compiler"
+              - "-rdc=*"
+          EOF
+        '';
+
         tools = [
           pkgs.gcc
 
@@ -47,6 +87,7 @@
           pkgs.gdb
           clangdWrapped
           pkgs.valgrind
+          genClangdConfig
         ];
       in
       {

@@ -1,9 +1,0 @@
-CompileFlags:
-  Add:
-    - -std=c++23
-    - -Wall
-    - -Wextra
-    - -Wsign-conversion
-    - -Wshadow
-    - -Wpedantic
-    - --driver-mode=g++

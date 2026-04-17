@@ -21,15 +21,14 @@ __global__ void matMulRowiseKernel(unsigned int *const A, unsigned int *const B,
         return;
     }
 
-    unsigned int sum = 0;
-
     for (unsigned int i = 0; i < size; ++i) {
+        unsigned int sum = 0;
+
         for (unsigned int j = 0; j < size; ++j) {
             sum += A[j + idx * size] * B[i + j * size];
         }
 
         out[i + idx * size] = sum;
-        sum = 0;
     }
 }
 
@@ -84,7 +83,7 @@ int main() {
     printf("Generated output:\n");
     for (unsigned int i = 0; i < size; ++i) {
         for (unsigned int j = 0; j < size; ++j) {
-            printf("%d ", A_h[i * size + j]);
+            printf("%d ", out_h[i * size + j]);
         }
         printf("\n");
     }

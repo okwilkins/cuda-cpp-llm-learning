@@ -32,6 +32,27 @@ __global__ void matMulRowiseKernel(unsigned int *const A, unsigned int *const B,
     }
 }
 
+// Assumes that A, B and out are all the same size
+__global__ void matMulColwiseKernel(unsigned int *const A, unsigned int *const B,
+                                    unsigned int *const out, const unsigned int size) {
+    // Row within A and col within B
+    const unsigned int idx = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (idx >= size) {
+        return;
+    }
+
+    for (unsigned int i = 0; i < size; ++i) {
+        unsigned int sum = 0;
+
+        for (unsigned int j = 0; j < size; ++j) {
+            sum += A[j + i * size] * B[j * size + idx];
+        }
+
+        out[i + idx * size] = sum;
+    }
+}
+
 int main() {
     // Setup matrix specs
     const unsigned int size = 4;
@@ -74,7 +95,7 @@ int main() {
     CUDA_CHECK(cudaMemcpy(out_d, out_h, memSize, cudaMemcpyHostToDevice));
 
     // Compute
-    matMulRowiseKernel<<<dimGrid, dimBlock>>>(A_d, B_d, out_d, size);
+    matMulColwiseKernel<<<dimGrid, dimBlock>>>(A_d, B_d, out_d, size);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     // Copy data from device back to host

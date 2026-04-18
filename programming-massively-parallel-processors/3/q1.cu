@@ -1,16 +1,7 @@
+#include "utils.hpp"
 #include <array>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CUDA_CHECK(call)                                                                           \
-    do {                                                                                           \
-        cudaError_t err = call;                                                                    \
-        if (err != cudaSuccess) {                                                                  \
-            fprintf(stderr, "CUDA Error [%s:%d]: %s\n", __FILE__, __LINE__,                        \
-                    cudaGetErrorString(err));                                                      \
-            exit(EXIT_FAILURE);                                                                    \
-        }                                                                                          \
-    } while (0)
 
 // Assumes that A, B and out are all the same size
 __global__ void matMulRowiseKernel(unsigned int *const A, unsigned int *const B,

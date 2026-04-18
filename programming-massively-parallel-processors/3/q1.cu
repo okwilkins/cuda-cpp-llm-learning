@@ -1,3 +1,4 @@
+#include <array>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -55,19 +56,14 @@ __global__ void matMulColwiseKernel(unsigned int *const A, unsigned int *const B
 
 int main() {
     // Setup matrix specs
-    const unsigned int size = 4;
-    const unsigned int n = size * size;
-    const unsigned int memSize = n * sizeof(unsigned int);
+    constexpr unsigned int size{4};
+    constexpr unsigned int n{size * size};
+    constexpr unsigned int memSize{n * sizeof(unsigned int)};
 
     // Setup host memory
-    unsigned int *const A_h = (unsigned int *)malloc(memSize);
-    unsigned int *const B_h = (unsigned int *)malloc(memSize);
-    unsigned int *const out_h = (unsigned int *)malloc(memSize);
-
-    if (A_h == NULL || B_h == NULL || out_h == NULL) {
-        printf("Host memory allocation failed!\n");
-        return -1;
-    }
+    std::array<unsigned int, n> A_h{};
+    std::array<unsigned int, n> B_h{};
+    std::array<unsigned int, n> out_h{};
 
     // Allocate values for matrix A and B
     for (unsigned int i = 0; i < size; ++i) {
@@ -82,24 +78,25 @@ int main() {
     const dim3 dimBlock(1, 1, 1);
 
     // Setup device memory
-    unsigned int *A_d;
-    unsigned int *B_d;
-    unsigned int *out_d;
+    unsigned int *A_d{};
+    unsigned int *B_d{};
+    unsigned int *out_d{};
 
     CUDA_CHECK(cudaMalloc((void **)&A_d, memSize));
     CUDA_CHECK(cudaMalloc((void **)&B_d, memSize));
     CUDA_CHECK(cudaMalloc((void **)&out_d, memSize));
 
-    CUDA_CHECK(cudaMemcpy(A_d, A_h, memSize, cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(B_d, B_h, memSize, cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(out_d, out_h, memSize, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(A_d, A_h.data(), memSize, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(B_d, B_h.data(), memSize, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(out_d, out_h.data(), memSize, cudaMemcpyHostToDevice));
 
     // Compute
     matMulColwiseKernel<<<dimGrid, dimBlock>>>(A_d, B_d, out_d, size);
+    CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
     // Copy data from device back to host
-    CUDA_CHECK(cudaMemcpy(out_h, out_d, memSize, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(out_h.data(), out_d, memSize, cudaMemcpyDeviceToHost));
 
     printf("Generated output:\n");
     for (unsigned int i = 0; i < size; ++i) {
@@ -109,14 +106,10 @@ int main() {
         printf("\n");
     }
 
-    // Free the memory on the device and host
-    free(A_h);
-    free(B_h);
-    free(out_h);
-
-    cudaFree(A_d);
-    cudaFree(B_d);
-    cudaFree(out_d);
+    // Free the memory on the device
+    CUDA_CHECK(cudaFree(A_d));
+    CUDA_CHECK(cudaFree(B_d));
+    CUDA_CHECK(cudaFree(out_d));
 
     return 0;
 }

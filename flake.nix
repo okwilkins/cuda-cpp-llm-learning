@@ -36,6 +36,9 @@
           fi
 
           cat > .clangd <<EOF
+          If:
+            PathMatch: .*\.(cpp|hpp|h|cc)$
+
           CompileFlags:
             Add:
               - -std=c++23
@@ -52,6 +55,7 @@
 
           CompileFlags:
             Add:
+              - -std=c++20
               - "-xcuda"
               - "--cuda-path=${pkgs.cudatoolkit}"
               - "--cuda-gpu-arch=sm_$CUDA_ARCH_RAW"

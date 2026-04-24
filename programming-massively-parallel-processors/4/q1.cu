@@ -23,7 +23,7 @@ void foo(int *a_d, int *b_d) {
 
 // 1b. Num warps in grid = (1024 + 128 - 1) / 128 = 8 blocks
 // 8 * 128 (threads per block) = 1,024 threads
-// 1024 / 32 = 8 warps
+// 1024 / 32 = 32 warps
 
 // 1ci. Line 4: how many warps in the grid are active?
 // For each block:
@@ -53,5 +53,11 @@ void foo(int *a_d, int *b_d) {
 // On average = 50%
 
 // 1di. Line 7: How many warps in the grid are active?
-// For each block half of the threads are active: 16.
-// So all would be active.
+// For each block half of the threads are active: 16
+// So all would be active: 32
+
+// 1dii. How many warps in the grid are active?
+// As each warp will have threads under the condition: 32
+
+// 1diii. What is the SIMD efficiency (in %) of warp 0 of block 0?
+// 2 passes would occur, half the threads will be in each, so: 50%

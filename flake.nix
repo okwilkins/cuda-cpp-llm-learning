@@ -73,12 +73,8 @@
 
         tools = [
           pkgs.gcc
-
-          # Build Systems
-          pkgs.cmake
+          pkgs.meson
           pkgs.ninja
-          pkgs.gnumake
-
           pkgs.cudatoolkit
 
           # Dev tools

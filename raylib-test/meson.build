@@ -18,6 +18,8 @@ extern_dir = include_directories(
   'extern/raylib',
 )
 
+include_dir = include_directories('src/include')
+
 cc = meson.get_compiler('c')
 math_dep = cc.find_library('m', required : false)
 glfw_dep = dependency('glfw3', required : false)
@@ -27,12 +29,13 @@ x11_dep = dependency('x11', required : false)
 executable(
   'my_game',
   ['src/client.cpp'] + raylib_src,
-  include_directories: extern_dir,
+  include_directories: [extern_dir, include_dir],
   dependencies: [math_dep, gl_dep, x11_dep, glfw_dep],
   c_args: ['-DPLATFORM_DESKTOP']
 )
 
 executable(
   'server',
-  'src/server.cpp',
+  ['src/server.cpp'],
+  include_directories: include_dir
 )

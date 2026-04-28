@@ -7,15 +7,15 @@ project('raylib-test', ['cpp', 'c'],
 )
 
 raylib_src = [
-  'include/raylib/rcore.c',
-  'include/raylib/rmodels.c',
-  'include/raylib/rshapes.c',
-  'include/raylib/rtext.c',
-  'include/raylib/rtextures.c',
+  'extern/raylib/rcore.c',
+  'extern/raylib/rmodels.c',
+  'extern/raylib/rshapes.c',
+  'extern/raylib/rtext.c',
+  'extern/raylib/rtextures.c',
 ]
 
-inc_dir = include_directories(
-  'include/raylib',
+extern_dir = include_directories(
+  'extern/raylib',
 )
 
 cc = meson.get_compiler('c')
@@ -27,7 +27,7 @@ x11_dep = dependency('x11', required : false)
 executable(
   'my_game',
   ['src/client.cpp'] + raylib_src,
-  include_directories: inc_dir,
+  include_directories: extern_dir,
   dependencies: [math_dep, gl_dep, x11_dep, glfw_dep],
   c_args: ['-DPLATFORM_DESKTOP']
 )

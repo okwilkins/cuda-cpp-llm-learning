@@ -60,8 +60,8 @@
           shellHook = ''
             ${rootFlake.devShells.${system}.default.shellHook or ""}
 
-            mkdir -p include/raylib
-            ln -sfn "${raylib-src}/src/"* include/raylib/
+            mkdir -p extern/raylib
+            ln -sfn "${raylib-src}/src/"* extern/raylib/
 
             mkdir -p build
             meson setup build --reconfigure

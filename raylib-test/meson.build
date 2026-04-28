@@ -16,6 +16,7 @@ raylib_src = [
 
 extern_dir = include_directories(
   'extern/raylib',
+  'extern/asio/include'
 )
 
 include_dir = include_directories('src/include')
@@ -37,5 +38,5 @@ executable(
 executable(
   'server',
   ['src/server.cpp'],
-  include_directories: include_dir
+  include_directories: [extern_dir, include_dir],
 )

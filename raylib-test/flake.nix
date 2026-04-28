@@ -29,6 +29,13 @@
           rev = "6.0";
           hash = "sha256-8+6MDTMc7Spix4ndAUzp51Q5iWcl7pQmyXuV2RutnOk=";
         };
+
+        asio-src = pkgs.fetchFromGitHub {
+          owner = "chriskohlhoff";
+          repo = "asio";
+          rev = "asio-1-38-0";
+          hash = "sha256-pkSu8XMibmRPMoS3v5hO34oJb077bYc9KWELj3t8D6M=";
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -38,6 +45,7 @@
           nativeBuildInputs = [
             pkgs.pkg-config
             raylib-src
+            asio-src
           ];
           buildInputs = [
             pkgs.libGL
@@ -60,8 +68,11 @@
           shellHook = ''
             ${rootFlake.devShells.${system}.default.shellHook or ""}
 
-            mkdir -p extern/raylib
-            ln -sfn "${raylib-src}/src/"* extern/raylib/
+            mkdir -p extern/raylib extern/asio
+
+            ln -sfn "${raylib-src}/src/"* extern/raylib
+            ln -sfn "${asio-src}/asio"* extern/asio/include
+            ln -sfn "${asio-src}/include"* extern/asio
 
             mkdir -p build
             meson setup build --reconfigure

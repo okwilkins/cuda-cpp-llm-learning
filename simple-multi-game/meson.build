@@ -1,8 +1,11 @@
-project('raylib-test', ['cpp', 'c'],
+project(
+  'raylib-test',
+  ['cpp', 'c'],
   version : '0.1',
   default_options : [
     'cpp_std=c++23',
-    'c_std=c99'
+    'c_std=c99',
+    'buildtype=release',
   ]
 )
 
@@ -27,12 +30,21 @@ glfw_dep = dependency('glfw3', required : false)
 gl_dep = dependency('gl')
 x11_dep = dependency('x11', required : false)
 
+raylib_lib = static_library(
+  'raylib',
+  raylib_src,
+  include_directories: extern_dir,
+  c_args: ['-DPLATFORM_DESKTOP'],
+  dependencies: [math_dep, gl_dep, glfw_dep, x11_dep],
+  install: false,
+)
+
 executable(
   'my_game',
-  ['src/client.cpp'] + raylib_src,
+  ['src/client.cpp'],
   include_directories: [extern_dir, include_dir],
+  link_with: raylib_lib,
   dependencies: [math_dep, gl_dep, x11_dep, glfw_dep],
-  c_args: ['-DPLATFORM_DESKTOP']
 )
 
 executable(

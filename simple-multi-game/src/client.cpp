@@ -2,6 +2,7 @@
 #include "networking.hpp"
 #include "queue.hpp"
 #include "raylib.h"
+#include "raymath.h"
 #include "render.hpp"
 
 #include <thread>
@@ -26,35 +27,74 @@ void game_loop(ThreadSafeQueue<NetworkMessage> &in_queue,
 }
 
 int main() {
-    constexpr int screenWidth = 800;
-    constexpr int screenHeight = 450;
+    constexpr int SCREEN_WIDTH = 800;
+    constexpr int SCREEN_HEIGHT = 450;
 
     // WARN: Temp variable
-    constexpr float accelFactor{9.81f};
+    constexpr float ACCEL_FACTOR{1000.0f};
+    constexpr Vector2 MAX_VEL{1000.0f, 1000.0f};
+    constexpr Vector2 MAX_ACCEL{500.0f, 500.0f};
+    constexpr float DRAG_FACTOR{400.0f};
+    constexpr float ARROW_SIZE_FACTOR{100.0f};
 
     SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
 
-    InitWindow(screenWidth, screenHeight, "Raylib Test");
-    SetTargetFPS(144);
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib Test");
+    SetTargetFPS(-1);
 
     Character player1{
         0,
-        Vector2{static_cast<float>(screenWidth) / 2 - static_cast<float>(screenWidth) / 4,
-                static_cast<float>(screenWidth) / 2 - static_cast<float>(screenHeight) / 4},
+        Vector2{static_cast<float>(SCREEN_WIDTH) / 2 - static_cast<float>(SCREEN_WIDTH) / 4,
+                static_cast<float>(SCREEN_WIDTH) / 2 - static_cast<float>(SCREEN_HEIGHT) / 4},
         Vector2{0.0f, 0.0f}, Vector2{0.0f, 0.0f}};
     Character player2{
         1,
-        Vector2{static_cast<float>(screenWidth) / 2 + static_cast<float>(screenWidth) / 4,
-                static_cast<float>(screenWidth) / 2 + static_cast<float>(screenHeight) / 4},
+        Vector2{static_cast<float>(SCREEN_WIDTH) / 2 + static_cast<float>(SCREEN_WIDTH) / 4,
+                static_cast<float>(SCREEN_WIDTH) / 2 + static_cast<float>(SCREEN_HEIGHT) / 4},
         Vector2{0.0f, 0.0f}, Vector2{0.0f, 0.0f}};
 
     Color player1Colour{characterIdColour(player1.id)};
     Color player2Colour{characterIdColour(player2.id)};
 
     while (!WindowShouldClose()) {
-        // if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-        //     GetMousePosition();
-        // }
+        const float deltaTime{GetFrameTime()};
+
+        Vector2 newPos{};
+        Vector2 newVel{};
+        Vector2 accel{};
+        bool drawLine{false};
+
+        const Vector2 desiredDir =
+            Vector2Normalize(Vector2Subtract(GetMousePosition(), player1.pos));
+        const Vector2 normMousePos{player1.pos + desiredDir * ARROW_SIZE_FACTOR};
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            accel = desiredDir * ACCEL_FACTOR;
+            drawLine = true;
+        } else {
+            float speed = Vector2Length(player1.vel);
+
+            if (speed > 0.1f) {
+                Vector2 travelDir = Vector2Normalize(player1.vel);
+                accel = travelDir * -DRAG_FACTOR;
+
+                if (speed < (DRAG_FACTOR * deltaTime)) {
+                    accel = {0.0f, 0.0f};
+                    player1.vel = {0.0f, 0.0f};
+                }
+            } else {
+                accel = {0.0f, 0.0f};
+                player1.vel = {0.0f, 0.0f};
+            }
+        }
+
+        accel = Vector2Clamp(accel, MAX_ACCEL * -1, MAX_ACCEL);
+        newVel = Vector2Clamp(player1.vel + (accel * deltaTime), MAX_VEL * -1, MAX_VEL);
+        newPos = player1.pos + player1.vel * deltaTime + (accel * deltaTime * deltaTime * 0.5);
+
+        player1.accel = accel;
+        player1.vel = newVel;
+        player1.pos = newPos;
 
         BeginDrawing();
 
@@ -63,6 +103,10 @@ int main() {
         // WARN: Temp render
         DrawCircleV(player1.pos, 10, player1Colour);
         DrawCircleV(player2.pos, 10, player2Colour);
+
+        if (drawLine) {
+            DrawLineV(player1.pos, normMousePos, GRAY);
+        }
 
         EndDrawing();
     }

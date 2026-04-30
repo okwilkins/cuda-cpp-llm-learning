@@ -1,8 +1,7 @@
 #pragma once
 
 #include "raylib.h"
-#include <algorithm>
-#include <limits>
+#include "raymath.h"
 
 class Character {
   public:
@@ -18,10 +17,7 @@ class Character {
         : id{id}, pos{pos}, vel{vel}, accel{accel} {}
 
     void applyForce(const Vector2 f) {
-        accel.x += f.x;
-        accel.y += f.y;
-
-        accel.x += std::clamp(accel.x, -MAX_ACCEL, MAX_ACCEL);
-        accel.y += std::clamp(accel.y, -MAX_ACCEL, MAX_ACCEL);
+        accel += f;
+        Vector2Clamp(accel, Vector2{-MAX_ACCEL, MAX_ACCEL}, Vector2{MAX_ACCEL, MAX_ACCEL});
     }
 };

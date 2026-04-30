@@ -1,6 +1,8 @@
+#include "character.hpp"
 #include "networking.hpp"
 #include "queue.hpp"
 #include "raylib.h"
+#include "render.hpp"
 
 #include <thread>
 
@@ -27,25 +29,40 @@ int main() {
     constexpr int screenWidth = 800;
     constexpr int screenHeight = 450;
 
+    // WARN: Temp variable
+    constexpr float accelFactor{9.81f};
+
     SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
 
     InitWindow(screenWidth, screenHeight, "Raylib Test");
     SetTargetFPS(144);
 
-    Vector2 ballPosition = {-100.0f, -100.0f};
+    Character player1{
+        0,
+        Vector2{static_cast<float>(screenWidth) / 2 - static_cast<float>(screenWidth) / 4,
+                static_cast<float>(screenWidth) / 2 - static_cast<float>(screenHeight) / 4},
+        Vector2{0.0f, 0.0f}, Vector2{0.0f, 0.0f}};
+    Character player2{
+        1,
+        Vector2{static_cast<float>(screenWidth) / 2 + static_cast<float>(screenWidth) / 4,
+                static_cast<float>(screenWidth) / 2 + static_cast<float>(screenHeight) / 4},
+        Vector2{0.0f, 0.0f}, Vector2{0.0f, 0.0f}};
+
+    Color player1Colour{characterIdColour(player1.id)};
+    Color player2Colour{characterIdColour(player2.id)};
 
     while (!WindowShouldClose()) {
-        ballPosition = GetMousePosition();
-
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            DrawText("Nix build systems are cooler than your build systems B)",
-                     static_cast<int>(ballPosition.x), static_cast<int>(ballPosition.y), 20,
-                     DARKGRAY);
-        }
+        // if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        //     GetMousePosition();
+        // }
 
         BeginDrawing();
 
         ClearBackground(RAYWHITE);
+
+        // WARN: Temp render
+        DrawCircleV(player1.pos, 10, player1Colour);
+        DrawCircleV(player2.pos, 10, player2Colour);
 
         EndDrawing();
     }

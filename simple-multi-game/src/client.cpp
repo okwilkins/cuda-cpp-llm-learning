@@ -5,6 +5,7 @@
 #include "raymath.h"
 #include "render.hpp"
 
+#include <algorithm>
 #include <thread>
 
 void game_loop(ThreadSafeQueue<NetworkMessage> &in_queue,
@@ -31,10 +32,10 @@ int main() {
     constexpr int SCREEN_HEIGHT = 450;
 
     // WARN: Temp variable
-    constexpr float ACCEL_FACTOR{1000.0f};
+    constexpr float ACCEL_FACTOR{3000.0f};
     constexpr Vector2 MAX_VEL{1000.0f, 1000.0f};
     constexpr Vector2 MAX_ACCEL{500.0f, 500.0f};
-    constexpr float DRAG_FACTOR{400.0f};
+    constexpr float DRAG_FACTOR{1000.0f};
     constexpr float ARROW_SIZE_FACTOR{100.0f};
 
     SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
@@ -64,13 +65,24 @@ int main() {
         Vector2 accel{};
         bool drawLine{false};
 
-        const Vector2 desiredDir =
-            Vector2Normalize(Vector2Subtract(GetMousePosition(), player1.pos));
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            player1.desiredPos = GetMousePosition();
+            drawLine = true;
+        }
+
+        const Vector2 desiredDir{
+            Vector2Normalize(Vector2Subtract(player1.desiredPos, player1.pos))};
         const Vector2 normMousePos{player1.pos + desiredDir * ARROW_SIZE_FACTOR};
 
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            accel = desiredDir * ACCEL_FACTOR;
-            drawLine = true;
+        bool desiredPosClose{Vector2Distance(player1.pos, player1.desiredPos) <
+                             DRAG_FACTOR * deltaTime * 5};
+
+        if (desiredPosClose) {
+            accel = {0.0f, 0.0f};
+            player1.vel = {0.0f, 0.0f};
+        } else if (drawLine) {
+            float accelMag = std::min(ACCEL_FACTOR, Vector2Length(MAX_ACCEL));
+            accel = desiredDir * accelMag;
         } else {
             float speed = Vector2Length(player1.vel);
 
@@ -88,8 +100,11 @@ int main() {
             }
         }
 
-        accel = Vector2Clamp(accel, MAX_ACCEL * -1, MAX_ACCEL);
-        newVel = Vector2Clamp(player1.vel + (accel * deltaTime), MAX_VEL * -1, MAX_VEL);
+        Vector2 rawVel = player1.vel + (accel * deltaTime);
+        float speed = Vector2Length(rawVel);
+        float maxSpeed = Vector2Length(MAX_VEL);
+
+        newVel = (speed > maxSpeed) ? Vector2Scale(Vector2Normalize(rawVel), maxSpeed) : rawVel;
         newPos = player1.pos + player1.vel * deltaTime + (accel * deltaTime * deltaTime * 0.5);
 
         player1.accel = accel;

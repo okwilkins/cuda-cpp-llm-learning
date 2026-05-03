@@ -35,7 +35,7 @@ int main() {
     constexpr float ACCEL_FACTOR{3000.0f};
     constexpr Vector2 MAX_VEL{1000.0f, 1000.0f};
     constexpr Vector2 MAX_ACCEL{500.0f, 500.0f};
-    constexpr float DRAG_FACTOR{1000.0f};
+    constexpr float DRAG_FACTOR{5000.0f};
     constexpr float ARROW_SIZE_FACTOR{100.0f};
 
     SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
@@ -56,6 +56,7 @@ int main() {
 
     Color player1Colour{characterIdColour(player1.id)};
     Color player2Colour{characterIdColour(player2.id)};
+    bool drawLine{false};
 
     while (!WindowShouldClose()) {
         const float deltaTime{GetFrameTime()};
@@ -63,7 +64,6 @@ int main() {
         Vector2 newPos{};
         Vector2 newVel{};
         Vector2 accel{};
-        bool drawLine{false};
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             player1.desiredPos = GetMousePosition();
@@ -80,6 +80,7 @@ int main() {
         if (desiredPosClose) {
             accel = {0.0f, 0.0f};
             player1.vel = {0.0f, 0.0f};
+            drawLine = false;
         } else if (drawLine) {
             float accelMag = std::min(ACCEL_FACTOR, Vector2Length(MAX_ACCEL));
             accel = desiredDir * accelMag;

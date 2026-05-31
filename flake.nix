@@ -71,16 +71,19 @@
           EOF
         '';
 
-        tools = [
-          pkgs.gcc
-          pkgs.meson
-          pkgs.ninja
-          pkgs.cudatoolkit
+        tools = with pkgs; [
+          gcc
+          meson
+          ninja
+          cudatoolkit
+          libglvnd
 
           # Dev tools
-          pkgs.gdb
+          gdb
+          valgrind
+          cudaPackages.nsight_systems
+          cudaPackages.nsight_compute
           clangdWrapped
-          pkgs.valgrind
           genClangdConfig
         ];
       in
@@ -95,11 +98,10 @@
             export CPATH="$GCC_DIR/include/c++/$GCC_VER:$GCC_DIR/include/c++/$GCC_VER/${pkgs.stdenv.hostPlatform.config}:${pkgs.glibc.dev}/include:${pkgs.linuxHeaders}/include:$CPATH"
             export CPLUS_INCLUDE_PATH="$GCC_DIR/include/c++/$GCC_VER:$GCC_DIR/include/c++/$GCC_VER/${pkgs.stdenv.hostPlatform.config}:${pkgs.glibc.dev}/include:${pkgs.linuxHeaders}/include:$CPLUS_INCLUDE_PATH"
 
-              # NVCC variables
-              export LD_LIBRARY_PATH=/run/opengl-driver/lib:$LD_LIBRARY_PATH
+            # NVCC variables
+            export LD_LIBRARY_PATH=/run/opengl-driver/lib:${pkgs.libglvnd}/lib:$LD_LIBRARY_PATH
 
-              gen-clangd-config
-
+            gen-clangd-config
           '';
         };
 

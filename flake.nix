@@ -81,8 +81,9 @@
           # Dev tools
           gdb
           valgrind
-          cudaPackages.nsight_systems
-          cudaPackages.nsight_compute
+          # cudaPackages is currently pinned to a default of v12_9
+          cudaPackages_13.nsight_systems
+          cudaPackages_13.nsight_compute
           clangdWrapped
           genClangdConfig
         ];

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cuda_runtime.h>
 #include <iomanip>
 #include <iostream>
 
@@ -19,7 +20,7 @@ template <std::size_t N> class DefaultSquareMatrix {
     DefaultSquareMatrix() {
         for (std::size_t row{0}; row < N; ++row) {
             for (std::size_t col{0}; col < N; ++col) {
-                data[row * N + col] = 1;
+                data[row * N + col] = 1.0;
             }
         }
 

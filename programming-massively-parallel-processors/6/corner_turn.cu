@@ -17,6 +17,25 @@ __global__ void naiveMatMul(float *const A, float *const B, float *const out, un
     out[row * size + col] = sum;
 }
 
+__global__ void tiledMatMul(float *const A, float *const B, float *const out, unsigned int size) {
+    extern __shared__ float s_data[];
+
+    unsigned int row{blockDim.y * blockIdx.y + threadIdx.y};
+    unsigned int col{blockDim.x * blockIdx.x + threadIdx.x};
+
+    if (row >= size || col >= size) {
+        return;
+    }
+
+    float sum{};
+
+    for (unsigned int i{0}; i < size; ++i) {
+        sum += A[row * size + i] * B[col + i * size];
+    }
+
+    out[row * size + col] = sum;
+}
+
 int main() {
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
@@ -44,20 +63,33 @@ int main() {
     std::cout << "Memory bus width: " << prop.memoryBusWidth << " bits\n";
     std::cout << "========================\n\n";
 
-    DefaultSquareMatrix<512> A{};
-    DefaultSquareMatrix<512> B{};
-    DefaultSquareMatrix<512> out{};
+    constexpr unsigned int matSize{512};
+    DefaultSquareMatrix<matSize> A{};
+    DefaultSquareMatrix<matSize> B{};
+    DefaultSquareMatrix<matSize> out{};
 
     // Setup grid and block dimensions
-    const dim3 dimGrid(ceil((16.0 * 16.0) / prop.maxThreadsPerBlock), 1, 1);
-    const dim3 dimBlock(32, 32, 1);
+    unsigned int blockWidth{static_cast<unsigned int>(
+        sqrtf(static_cast<float>(prop.sharedMemPerBlock) / static_cast<float>(sizeof(float))))};
+
+    if (blockWidth * blockWidth > prop.maxThreadsPerBlock) {
+        blockWidth = static_cast<unsigned int>(sqrtf(static_cast<float>(prop.maxThreadsPerBlock)));
+    }
+    const unsigned int numBlocks{(matSize + blockWidth - 1) / blockWidth};
+
+    const dim3 dimGrid{numBlocks, numBlocks, 1};
+    const dim3 dimBlock(blockWidth, blockWidth, 1);
 
     naiveMatMul<<<dimGrid, dimBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+    tiledMatMul<<<dimGrid, dimBlock, prop.sharedMemPerBlock>>>(A.devicePtr, B.devicePtr,
+                                                               out.devicePtr, A.size);
 
     cudaDeviceSynchronize();
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
+
+    out.print();
 
     return 0;
 }

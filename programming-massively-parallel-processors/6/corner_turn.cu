@@ -17,23 +17,53 @@ __global__ void naiveMatMul(float *const A, float *const B, float *const out, un
     out[row * size + col] = sum;
 }
 
-__global__ void tiledMatMul(float *const A, float *const B, float *const out, unsigned int size) {
+__global__ void tiledMatMul(float *const A, float *const B, float *const out, int size,
+                            int tileWidth) {
     extern __shared__ float s_data[];
 
-    unsigned int row{blockDim.y * blockIdx.y + threadIdx.y};
-    unsigned int col{blockDim.x * blockIdx.x + threadIdx.x};
+    unsigned int bx{blockIdx.x};
+    unsigned int by{blockIdx.y};
+    unsigned int tx{threadIdx.x};
+    unsigned int ty{threadIdx.y};
 
-    if (row >= size || col >= size) {
-        return;
+    // Identify the row and col of the output matrix element to work on
+    unsigned int row{tileWidth * by + ty};
+    unsigned int col{tileWidth * bx + tx};
+
+    // Index within the tile/shared memory
+    unsigned int localAIdx{ty * tileWidth + tx};
+    // Put the shared data for B "below" A
+    unsigned int localBIdx{(tileWidth * tileWidth) + localAIdx};
+    float product{0};
+
+    for (int phase{0}; phase < (size + tileWidth - 1) / tileWidth; ++phase) {
+        unsigned int globalAIdx{(row * size) + (phase * tileWidth) + tx};
+        unsigned int globalBIdx{col + (phase * tileWidth * size) + (ty * size)};
+
+        if (row < size && (phase * tileWidth + tx) < size) {
+            s_data[localAIdx] = A[globalAIdx];
+        } else {
+            s_data[localAIdx] = 0.0f;
+        }
+
+        if (col < size && (phase * tileWidth + ty) < size) {
+            s_data[localBIdx] = B[globalBIdx];
+        } else {
+            s_data[localBIdx] = 0.0f;
+        }
+
+        __syncthreads();
+
+        for (int i = 0; i < tileWidth; ++i) {
+            product +=
+                s_data[ty * tileWidth + i] * s_data[(tileWidth * tileWidth) + (i * tileWidth) + tx];
+        }
+        __syncthreads();
     }
 
-    float sum{};
-
-    for (unsigned int i{0}; i < size; ++i) {
-        sum += A[row * size + i] * B[col + i * size];
+    if (row < size && col < size) {
+        out[row * size + col] = product;
     }
-
-    out[row * size + col] = sum;
 }
 
 int main() {
@@ -70,7 +100,7 @@ int main() {
 
     // Setup grid and block dimensions
     unsigned int blockWidth{static_cast<unsigned int>(
-        sqrtf(static_cast<float>(prop.sharedMemPerBlock) / static_cast<float>(sizeof(float))))};
+        sqrtf(static_cast<float>(prop.sharedMemPerBlock) / static_cast<float>(2 * sizeof(float))))};
 
     if (blockWidth * blockWidth > prop.maxThreadsPerBlock) {
         blockWidth = static_cast<unsigned int>(sqrtf(static_cast<float>(prop.maxThreadsPerBlock)));
@@ -81,15 +111,21 @@ int main() {
     const dim3 dimBlock(blockWidth, blockWidth, 1);
 
     naiveMatMul<<<dimGrid, dimBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+
+    std::cout << "\n\n========================\n";
+    std::cout << "Launching tiled matmul kernel with:\n";
+    std::cout << "\tNum blocks: " << numBlocks << '\n';
+    std::cout << "\tTile Size: " << blockWidth << '\n';
+    std::cout << "========================\n\n";
+
+    out = DefaultSquareMatrix<matSize>{};
     tiledMatMul<<<dimGrid, dimBlock, prop.sharedMemPerBlock>>>(A.devicePtr, B.devicePtr,
-                                                               out.devicePtr, A.size);
+                                                               out.devicePtr, A.size, blockWidth);
 
     cudaDeviceSynchronize();
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
-
-    out.print();
 
     return 0;
 }

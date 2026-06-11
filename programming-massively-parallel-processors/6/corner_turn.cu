@@ -43,10 +43,10 @@ __global__ void tiledMatMul(float *const __restrict__ A, float *const __restrict
         const unsigned int globalBIdx{(bRow * size) + col};
 
         (row < size && aCol < size) ? s_A[ty][tx] = A[globalAIdx] : s_A[ty][tx] = 0.0f;
-        (row < size && bRow < size) ? s_B[ty][tx] = B[globalBIdx] : s_B[ty][tx] = 0.0f;
+        (col < size && bRow < size) ? s_B[ty][tx] = B[globalBIdx] : s_B[ty][tx] = 0.0f;
         __syncthreads();
 
-        for (int i = 0; i < TILE; ++i) {
+        for (int i{0}; i < TILE; ++i) {
             product += s_A[ty][i] * s_B[i][tx];
         }
         __syncthreads();
@@ -54,6 +54,59 @@ __global__ void tiledMatMul(float *const __restrict__ A, float *const __restrict
 
     if (row < size && col < size) {
         out[row * size + col] = product;
+    }
+}
+
+template <int TILE, int COARSENING>
+__global__ void rowCoarsenedTiledMatMul(float *const __restrict__ A, float *const __restrict__ B,
+                                        float *const __restrict__ out, int size) {
+    __shared__ float s_A[TILE * COARSENING][TILE];
+    __shared__ float s_B[TILE][TILE];
+
+    const unsigned int bx{blockIdx.x};
+    const unsigned int by{blockIdx.y};
+    const unsigned int tx{threadIdx.x};
+    const unsigned int ty{threadIdx.y};
+
+    // Identify the row and col of the output matrix element to work on
+    const unsigned int rowBase{TILE * COARSENING * by + ty};
+    const unsigned int col{TILE * bx + tx};
+
+    float products[COARSENING]{0.0f};
+
+    for (int phase{0}; phase < (size + TILE - 1) / TILE; ++phase) {
+        const unsigned int aCol(phase * TILE + tx);
+        const unsigned int bRow(phase * TILE + ty);
+
+        // Load A rows for all coarsened outputs and one B tile into SMEM
+        // The number of A rows depends on COARSENING
+        for (int c{0}; c < COARSENING; ++c) {
+            const unsigned int row{rowBase + c * TILE};
+
+            // Load A tile
+            (row < size && aCol < size) ? s_A[ty + c * TILE][tx] = A[row * size + aCol]
+                                        : s_A[ty + c * TILE][tx] = 0.0f;
+        }
+
+        // Load B tile
+        (col < size && bRow < size) ? s_B[ty][tx] = B[bRow * size + col] : s_B[ty][tx] = 0.0f;
+        __syncthreads();
+
+        // Calculate products
+        for (int i{0}; i < TILE; ++i) {
+            for (int c{0}; c < COARSENING; ++c) {
+                products[c] += s_A[ty + c * TILE][i] * s_B[i][tx];
+            }
+        }
+        __syncthreads();
+    }
+
+    for (int c{0}; c < COARSENING; ++c) {
+        const unsigned int row{rowBase + c * TILE};
+
+        if (row < size && col < size) {
+            out[row * size + col] = products[c];
+        }
     }
 }
 
@@ -91,8 +144,13 @@ int main() {
 
     // Setup grid and block dimensions
     constexpr int TILE{32};
+    constexpr int COARSENING{4};
+
     constexpr int BLOCK{(matSize + TILE - 1) / TILE};
+    constexpr int COARSENED_BLOCK_Y{(matSize + TILE * COARSENING - 1) / (TILE * COARSENING)};
+
     const dim3 dimGrid(BLOCK, BLOCK);
+    const dim3 coarsenedDimGrid(BLOCK, COARSENED_BLOCK_Y);
     const dim3 dimBlock(TILE, TILE);
 
     // Naive matmul
@@ -122,19 +180,14 @@ int main() {
 
     out = DefaultSquareMatrix<matSize>{};
 
-    // Tiled + padding matmul
-    // tiledMatMul<<<dimGrid, dimBlock, prop.sharedMemPerBlock>>>(
-    //     A.devicePtr, B.devicePtr, out.devicePtr, A.size, blockWidth + 1);
-    //
-    // cudaDeviceSynchronize();
-    // CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
-    // CUDA_CHECK(cudaGetLastError());
-    // CUDA_CHECK(cudaDeviceSynchronize());
-    //
-    // out = DefaultSquareMatrix<matSize>{};
-    //
+    rowCoarsenedTiledMatMul<TILE, COARSENING>
+        <<<coarsenedDimGrid, dimBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
 
-    // DO PRAGMA UNROLL
+    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
+    out = DefaultSquareMatrix<matSize>{};
     return 0;
 }

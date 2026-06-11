@@ -1,8 +1,9 @@
 #include "utils.cuh"
 
-__global__ void naiveMatMul(float *const A, float *const B, float *const out, unsigned int size) {
-    unsigned int row{blockDim.y * blockIdx.y + threadIdx.y};
-    unsigned int col{blockDim.x * blockIdx.x + threadIdx.x};
+__global__ void naiveMatMul(float *const __restrict__ A, float *const __restrict__ B,
+                            float *const __restrict__ out, unsigned int size) {
+    const unsigned int row{blockDim.y * blockIdx.y + threadIdx.y};
+    const unsigned int col{blockDim.x * blockIdx.x + threadIdx.x};
 
     if (row >= size || col >= size) {
         return;
@@ -17,46 +18,36 @@ __global__ void naiveMatMul(float *const A, float *const B, float *const out, un
     out[row * size + col] = sum;
 }
 
-__global__ void tiledMatMul(float *const A, float *const B, float *const out, int size,
-                            int tileWidth) {
-    extern __shared__ float s_data[];
+template <int TILE>
+__global__ void tiledMatMul(float *const __restrict__ A, float *const __restrict__ B,
+                            float *const __restrict__ out, int size) {
+    __shared__ float s_A[TILE][TILE];
+    __shared__ float s_B[TILE][TILE];
 
-    unsigned int bx{blockIdx.x};
-    unsigned int by{blockIdx.y};
-    unsigned int tx{threadIdx.x};
-    unsigned int ty{threadIdx.y};
+    const unsigned int bx{blockIdx.x};
+    const unsigned int by{blockIdx.y};
+    const unsigned int tx{threadIdx.x};
+    const unsigned int ty{threadIdx.y};
 
     // Identify the row and col of the output matrix element to work on
-    unsigned int row{tileWidth * by + ty};
-    unsigned int col{tileWidth * bx + tx};
+    const unsigned int row{TILE * by + ty};
+    const unsigned int col{TILE * bx + tx};
 
-    // Index within the tile/shared memory
-    unsigned int localAIdx{ty * tileWidth + tx};
-    // Put the shared data for B "below" A
-    unsigned int localBIdx{(tileWidth * tileWidth) + localAIdx};
-    float product{0};
+    float product{0.0f};
 
-    for (int phase{0}; phase < (size + tileWidth - 1) / tileWidth; ++phase) {
-        unsigned int globalAIdx{(row * size) + (phase * tileWidth) + tx};
-        unsigned int globalBIdx{col + (phase * tileWidth * size) + (ty * size)};
+    for (int phase{0}; phase < (size + TILE - 1) / TILE; ++phase) {
+        const unsigned int aCol(phase * TILE + tx);
+        const unsigned int bRow(phase * TILE + ty);
 
-        if (row < size && (phase * tileWidth + tx) < size) {
-            s_data[localAIdx] = A[globalAIdx];
-        } else {
-            s_data[localAIdx] = 0.0f;
-        }
+        const unsigned int globalAIdx{(row * size) + aCol};
+        const unsigned int globalBIdx{(bRow * size) + col};
 
-        if (col < size && (phase * tileWidth + ty) < size) {
-            s_data[localBIdx] = B[globalBIdx];
-        } else {
-            s_data[localBIdx] = 0.0f;
-        }
-
+        (row < size && aCol < size) ? s_A[ty][tx] = A[globalAIdx] : s_A[ty][tx] = 0.0f;
+        (row < size && bRow < size) ? s_B[ty][tx] = B[globalBIdx] : s_B[ty][tx] = 0.0f;
         __syncthreads();
 
-        for (int i = 0; i < tileWidth; ++i) {
-            product +=
-                s_data[ty * tileWidth + i] * s_data[(tileWidth * tileWidth) + (i * tileWidth) + tx];
+        for (int i = 0; i < TILE; ++i) {
+            product += s_A[ty][i] * s_B[i][tx];
         }
         __syncthreads();
     }
@@ -99,33 +90,51 @@ int main() {
     DefaultSquareMatrix<matSize> out{};
 
     // Setup grid and block dimensions
-    unsigned int blockWidth{static_cast<unsigned int>(
-        sqrtf(static_cast<float>(prop.sharedMemPerBlock) / static_cast<float>(2 * sizeof(float))))};
+    constexpr int TILE{32};
+    constexpr int BLOCK{(matSize + TILE - 1) / TILE};
+    const dim3 dimGrid(BLOCK, BLOCK);
+    const dim3 dimBlock(TILE, TILE);
 
-    if (blockWidth * blockWidth > prop.maxThreadsPerBlock) {
-        blockWidth = static_cast<unsigned int>(sqrtf(static_cast<float>(prop.maxThreadsPerBlock)));
-    }
-    const unsigned int numBlocks{(matSize + blockWidth - 1) / blockWidth};
-
-    const dim3 dimGrid{numBlocks, numBlocks, 1};
-    const dim3 dimBlock(blockWidth, blockWidth, 1);
-
+    // Naive matmul
     naiveMatMul<<<dimGrid, dimBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
-
-    std::cout << "\n\n========================\n";
-    std::cout << "Launching tiled matmul kernel with:\n";
-    std::cout << "\tNum blocks: " << numBlocks << '\n';
-    std::cout << "\tTile Size: " << blockWidth << '\n';
-    std::cout << "========================\n\n";
-
-    out = DefaultSquareMatrix<matSize>{};
-    tiledMatMul<<<dimGrid, dimBlock, prop.sharedMemPerBlock>>>(A.devicePtr, B.devicePtr,
-                                                               out.devicePtr, A.size, blockWidth);
 
     cudaDeviceSynchronize();
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
+
+    out = DefaultSquareMatrix<matSize>{};
+
+    // Basic tiled matmul
+    std::cout << "\n\n========================\n";
+    std::cout << "Launching tiled matmul kernel with:\n";
+    std::cout << "\tNum blocks: " << BLOCK * BLOCK << '\n';
+    std::cout << "\tTile Size: " << TILE << '\n';
+    std::cout << "========================\n\n";
+
+    // This will contain many bank conflicts
+    tiledMatMul<TILE><<<dimGrid, dimBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+
+    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    out = DefaultSquareMatrix<matSize>{};
+
+    // Tiled + padding matmul
+    // tiledMatMul<<<dimGrid, dimBlock, prop.sharedMemPerBlock>>>(
+    //     A.devicePtr, B.devicePtr, out.devicePtr, A.size, blockWidth + 1);
+    //
+    // cudaDeviceSynchronize();
+    // CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
+    // CUDA_CHECK(cudaGetLastError());
+    // CUDA_CHECK(cudaDeviceSynchronize());
+    //
+    // out = DefaultSquareMatrix<matSize>{};
+    //
+
+    // DO PRAGMA UNROLL
 
     return 0;
 }

@@ -19,7 +19,7 @@ This allows C++ and CUDA running correctly with the Clangd LSP.
 To get the most out of profiling CUDA C++ binaries compile with:
 
 ```bash
-nvcc -O3 -o main -lineinfo <CUDA FILE>
+nvcc -std=c++20 -O3 -lineinfo -o main <CUDA FILE>
 ```
 
 #### Nsight System

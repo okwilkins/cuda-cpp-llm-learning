@@ -69,3 +69,56 @@ template <std::size_t N> class DefaultSquareMatrix {
         std::cout << '\n';
     }
 };
+
+template <std::size_t N> class DefaultVector {
+  public:
+    DefaultVector() {
+        for (std::size_t i{0}; i < N; ++i) {
+            data[i] = 1.0;
+        }
+
+        CUDA_CHECK(cudaMalloc((void **)&devicePtr, memSize));
+        CUDA_CHECK(cudaMemcpy(devicePtr, data.data(), memSize, cudaMemcpyHostToDevice));
+
+        std::cout << "Allocated: " << memSize << "B to the device\n";
+    };
+    DefaultVector(const DefaultVector &) = delete;
+    DefaultVector &operator=(const DefaultVector &) = delete;
+    DefaultVector(DefaultVector &&other) noexcept
+        : data(std::move(other.data)), devicePtr(other.devicePtr) {
+        other.devicePtr = nullptr;
+    }
+    DefaultVector &operator=(DefaultVector &&other) noexcept {
+        if (this != &other) {
+            if (devicePtr) {
+                CUDA_CHECK(cudaFree(devicePtr));
+                std::cout << "Freed: " << memSize << "B from the device\n";
+            }
+            data = std::move(other.data);
+            devicePtr = other.devicePtr;
+            other.devicePtr = nullptr;
+        }
+
+        return *this;
+    }
+
+    ~DefaultVector() {
+        CUDA_CHECK(cudaFree(devicePtr));
+        std::cout << "Freed: " << memSize << "B from the device\n";
+    }
+
+    std::array<float, N> data{};
+    static constexpr std::size_t size{N};
+    static constexpr std::size_t memSize{N * sizeof(float)};
+    float *devicePtr{nullptr};
+
+    void print() const {
+        std::cout << "{";
+
+        for (std::size_t i{0}; i < N; ++i) {
+            std::cout << std::setw(2) << data[i] << " ";
+        }
+
+        std::cout << "}\n";
+    }
+};

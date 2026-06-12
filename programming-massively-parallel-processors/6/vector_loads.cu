@@ -11,7 +11,16 @@ __global__ void naiveVectorAdd(float *const A, float *const B, float *const out,
     out[idx] = A[idx] + B[idx];
 }
 
-__global__ void restrictVectorAdd(float *const) {}
+__global__ void restrictVectorAdd(float *const __restrict__ A, float *const __restrict__ B,
+                                  float *const __restrict__ out, unsigned int size) {
+    const unsigned int idx{blockDim.x * blockIdx.x + threadIdx.x};
+
+    if (idx >= size) {
+        return;
+    }
+
+    out[idx] = A[idx] + B[idx];
+}
 
 int main() {
     cudaDeviceProp prop{};
@@ -60,9 +69,20 @@ int main() {
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
+    out = DefaultVector<vecSize>{};
 
-    out.print();
+    std::cout << "\n\n========================\n";
+    std::cout << "Launching restrictive naive vector add kernel with:\n";
+    std::cout << "\tNum blocks           : " << blocks << '\n';
+    std::cout << "\tNum threads per block: " << threadsPerBlock << '\n';
+    std::cout << "========================\n\n";
 
+    restrictVectorAdd<<<blocks, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+
+    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
     out = DefaultVector<vecSize>{};
 
     return 0;

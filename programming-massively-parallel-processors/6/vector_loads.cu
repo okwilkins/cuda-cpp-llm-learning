@@ -22,6 +22,20 @@ __global__ void restrictVectorAdd(float *const __restrict__ A, float *const __re
     out[idx] = A[idx] + B[idx];
 }
 
+__global__ void vectorLoadsVectorAdd(float *const __restrict__ A, float *const __restrict__ B,
+                                     float *const __restrict__ out, unsigned int vec4Count) {
+    const unsigned int idx{blockDim.x * blockIdx.x + threadIdx.x};
+    if (idx >= vec4Count) {
+        return;
+    }
+
+    const float4 A4 = ((float4 *)A)[idx];
+    const float4 B4 = ((float4 *)B)[idx];
+    const float4 out4{A4.x + B4.x, A4.y + B4.y, A4.z + B4.z, A4.w + B4.w};
+
+    ((float4 *)out)[idx] = out4;
+}
+
 int main() {
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
@@ -49,9 +63,11 @@ int main() {
     std::cout << "Memory bus width: " << prop.memoryBusWidth << " bits\n";
     std::cout << "========================\n\n";
 
-    constexpr unsigned int vecSize{2048};
+    constexpr unsigned int vecSize{2048 * 128};
+    constexpr unsigned int vec4Count{vecSize / 4};
     const int threadsPerBlock{prop.maxThreadsPerMultiProcessor / 4};
     const int blocks{(static_cast<int>(vecSize) + threadsPerBlock - 1) / threadsPerBlock};
+    const int blocksVec4{(static_cast<int>(vec4Count) + threadsPerBlock - 1) / threadsPerBlock};
 
     DefaultVector<vecSize> A{};
     DefaultVector<vecSize> B{};
@@ -63,7 +79,7 @@ int main() {
     std::cout << "\tNum threads per block: " << threadsPerBlock << '\n';
     std::cout << "========================\n\n";
 
-    naiveVectorAdd<<<blocks, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+    naiveVectorAdd<<<blocks, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, vecSize);
 
     cudaDeviceSynchronize();
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
@@ -77,7 +93,23 @@ int main() {
     std::cout << "\tNum threads per block: " << threadsPerBlock << '\n';
     std::cout << "========================\n\n";
 
-    restrictVectorAdd<<<blocks, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr, A.size);
+    restrictVectorAdd<<<blocks, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr,
+                                                   vecSize);
+
+    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+    out = DefaultVector<vecSize>{};
+
+    std::cout << "\n\n========================\n";
+    std::cout << "Launching vector loads vector add kernel with:\n";
+    std::cout << "\tNum blocks           : " << blocksVec4 << '\n';
+    std::cout << "\tNum threads per block: " << threadsPerBlock << '\n';
+    std::cout << "========================\n\n";
+
+    vectorLoadsVectorAdd<<<blocksVec4, threadsPerBlock>>>(A.devicePtr, B.devicePtr, out.devicePtr,
+                                                          vec4Count);
 
     cudaDeviceSynchronize();
     CUDA_CHECK(cudaMemcpy(out.data.data(), out.devicePtr, out.memSize, cudaMemcpyDeviceToHost));

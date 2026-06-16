@@ -1,7 +1,6 @@
 import os
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from llm_inference_engine.engine import InferenceEngine
 
 if __name__ == "__main__":
     MODEL_PATH = os.environ.get("MODEL_PATH")
@@ -12,18 +11,32 @@ if __name__ == "__main__":
     else:
         print(f"Loading in model from: {MODEL_PATH}")
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_PATH,
-        local_files_only=True,
-        trust_remote_code=True,
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_PATH,
-        dtype=torch.bfloat16,
-        device_map="cuda",
-        trust_remote_code=True,
-        local_files_only=True,
-    )
+    engine = InferenceEngine(model_name=MODEL_PATH)
 
-    print("Loaded model!")
+    messages = []
+    print("Type 'exit' or 'quit' (q) to stop.\n")
+
+    while True:
+        user_input = input("Input: ").strip()
+        if user_input.lower() in ("exit", "quit", "q"):
+            break
+
+        messages.append({"role": "user", "content": user_input})
+        prompt = engine.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+
+        output = engine.generate(
+            prompt,
+            max_new_tokens=256,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+        )
+
+        print(f"\nAssistant: {output}\n")
+
+        messages.append({"role": "assistant", "content": output})
 

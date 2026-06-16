@@ -1,0 +1,20 @@
+[project]
+name = "llm-inference-engine"
+version = "0.1.0"
+description = "LLM inference engine"
+authors = [
+    { name = "Oliver Wilkins", email = "okwilkins@googlemail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=5.0.0",
+    "accelerate>=1.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["ruff", "ty", "huggingface_hub"]

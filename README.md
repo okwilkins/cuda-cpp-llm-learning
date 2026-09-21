@@ -1,6 +1,6 @@
-# Learning C++
+# Learning C++/CUDA/LLMs
 
-A project dedicated to learning C++ for applications in AI/ML and lower-level GPU programming.
+A project dedicated to learning C++, CUDA and LLMs for applications in AI/ML and lower-level GPU programming.
 
 ## Getting Started
 
